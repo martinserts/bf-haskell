@@ -1,0 +1,103 @@
+cabal-version:       2.4
+name:                bf-haskell
+version:             0.1.0.0
+synopsis:            Betfair Exchange API
+description:         Betfair Exchange API implemented using Polysemy -
+                     free monad library. It contains clients for
+                     "Exchange Stream API", "Betting API" and "Heartbeat API".
+homepage:            https://github.com/martinserts/bf-haskell/
+license:             MIT
+license-file:        LICENSE
+author:              Martins Erts
+maintainer:          martins.erts@gmail.com
+copyright:           Martins Erts
+category:            Network
+extra-source-files:  CHANGELOG.md
+
+common shared-properties
+  ghc-options: -fplugin=Polysemy.Plugin -Wall
+  default-extensions:  DataKinds, FlexibleContexts, GADTs, LambdaCase, PolyKinds,
+                       RankNTypes, ScopedTypeVariables, TypeApplications,
+                       TypeOperators, TypeFamilies, OverloadedStrings
+
+library
+  import: shared-properties
+  exposed-modules:   BfHaskell.BfHaskell,
+                     BfHaskell.Common.Logging,
+                     BfHaskell.DSL.Login,
+                     BfHaskell.DSL.Streaming,
+                     BfHaskell.DSL.Betting,
+                     BfHaskell.DSL.Heartbeat,
+                     BfHaskell.Internal.JsonTypes,
+                     BfHaskell.Internal.Network,
+                     BfHaskell.Internal.Rpc,
+                     BfHaskell.LoginAPI.Types,
+                     BfHaskell.LoginAPI.Login,
+                     BfHaskell.StreamingAPI.Model,
+                     BfHaskell.StreamingAPI.Types,
+                     BfHaskell.StreamingAPI.Streaming,
+                     BfHaskell.StreamingAPI.StreamingProcessor,
+                     BfHaskell.Common.Odds,
+                     BfHaskell.StreamingAPI.StreamingUtils,
+                     BfHaskell.StreamingAPI.Prices,
+                     BfHaskell.StreamingAPI.StreamingMarkets,
+                     BfHaskell.StreamingAPI.StreamingOrders,
+                     BfHaskell.StreamingAPI.StreamingComm,
+                     BfHaskell.StreamingAPI.CommandExecutor,
+                     BfHaskell.StreamingAPI.SslClient,
+                     BfHaskell.BettingAPI.Types,
+                     BfHaskell.BettingAPI.Request,
+                     BfHaskell.BettingAPI.Response,
+                     BfHaskell.BettingAPI.Betting,
+                     BfHaskell.HeartbeatAPI.Types,
+                     BfHaskell.HeartbeatAPI.Heartbeat
+
+
+  -- other-modules:
+  -- other-extensions:
+  --build-depends:       base ^>=4.12.0.0,
+  build-depends:       base,
+                       text,
+                       data-default,
+                       timers,
+                       req,
+                       polysemy,
+                       polysemy-plugin,
+                       bytestring,
+                       modern-uri,
+                       exceptions,
+                       either,
+                       aeson,
+                       http-client,
+                       data-default-class,
+                       tls,
+                       connection,
+                       http-client-tls,
+                       mtl,
+                       containers,
+                       unordered-containers,
+                       time,
+                       iso8601-time,
+                       lens,
+                       stm,
+                       fingertree,
+                       vector,
+                       co-log-core,
+                       retry,
+                       async,
+                       tcp-streams,
+                       io-streams,
+                       network,
+                       transformers,
+                       uuid
+
+
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+test-suite bf-haskell-test
+  default-language:    Haskell2010
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             MyLibTest.hs
+  build-depends:       base ^>=4.12.0.0

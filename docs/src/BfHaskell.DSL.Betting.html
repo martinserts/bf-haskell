@@ -1,0 +1,51 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- Module      :  BfHaskell.DSL.Betting</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- Copyright   :  (C) 2020 Martins Erts</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- License     :  MIT</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- Maintainer  :  Martins Erts &lt;martins.erts@gmail.com&gt;</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><a name="line-8"></a><span>
+</span><a name="line-9"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">BfHaskell.DSL.Betting</span><span>
+</span><a name="line-10"></a><span class="hs-special">(</span><span>
+</span><a name="line-11"></a><span>  </span><span class="hs-comment">-- * Effect</span><span>
+</span><a name="line-12"></a><span>  </span><a href="BfHaskell.BettingAPI.Betting.html#BettingHandler"><span class="hs-identifier hs-type">BettingHandler</span></a><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><a name="line-13"></a><span>
+</span><a name="line-14"></a><span>  </span><span class="hs-comment">-- * Actions</span><span>
+</span><a name="line-15"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listEventTypes"><span class="hs-identifier hs-var">listEventTypes</span></a><span>
+</span><a name="line-16"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listTimeRanges"><span class="hs-identifier hs-var">listTimeRanges</span></a><span>
+</span><a name="line-17"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listCompetitions"><span class="hs-identifier hs-var">listCompetitions</span></a><span>
+</span><a name="line-18"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listMarketCatalogue"><span class="hs-identifier hs-var">listMarketCatalogue</span></a><span>
+</span><a name="line-19"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listMarkets"><span class="hs-identifier hs-var">listMarkets</span></a><span>
+</span><a name="line-20"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listMarketBook"><span class="hs-identifier hs-var">listMarketBook</span></a><span>
+</span><a name="line-21"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#placeOrders"><span class="hs-identifier hs-var">placeOrders</span></a><span>
+</span><a name="line-22"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#cancelOrders"><span class="hs-identifier hs-var">cancelOrders</span></a><span>
+</span><a name="line-23"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#replaceOrders"><span class="hs-identifier hs-var">replaceOrders</span></a><span>
+</span><a name="line-24"></a><span>
+</span><a name="line-25"></a><span> </span><span class="hs-comment">-- * Interpretations</span><span>
+</span><a name="line-26"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#runBettingHandler"><span class="hs-identifier hs-var">runBettingHandler</span></a><span>
+</span><a name="line-27"></a><span>
+</span><a name="line-28"></a><span> </span><span class="hs-comment">-- * Helpers</span><span>
+</span><a name="line-29"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#defaultBettingUrl"><span class="hs-identifier hs-var">defaultBettingUrl</span></a><span>
+</span><a name="line-30"></a><span>  </span><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#createMarketFilter"><span class="hs-identifier hs-var">createMarketFilter</span></a><span>
+</span><a name="line-31"></a><span>
+</span><a name="line-32"></a><span>  </span><span class="hs-comment">-- * Data types</span><span>
+</span><a name="line-33"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.BettingAPI.Types.html"><span class="hs-identifier">BfHaskell.BettingAPI.Types</span></a><span>
+</span><a name="line-34"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.BettingAPI.Request.html"><span class="hs-identifier">BfHaskell.BettingAPI.Request</span></a><span>
+</span><a name="line-35"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.BettingAPI.Response.html"><span class="hs-identifier">BfHaskell.BettingAPI.Response</span></a><span>
+</span><a name="line-36"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-37"></a><span>
+</span><a name="line-38"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.BettingAPI.Betting.html"><span class="hs-identifier">BfHaskell.BettingAPI.Betting</span></a><span>  </span><span class="hs-special">(</span><a href="BfHaskell.BettingAPI.Betting.html#BettingHandler"><span class="hs-identifier hs-type">BettingHandler</span></a><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><a name="line-39"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#cancelOrders"><span class="hs-identifier hs-var">cancelOrders</span></a><span class="hs-special">,</span><span>
+</span><a name="line-40"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#createMarketFilter"><span class="hs-identifier hs-var">createMarketFilter</span></a><span class="hs-special">,</span><span>
+</span><a name="line-41"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#defaultBettingUrl"><span class="hs-identifier hs-var">defaultBettingUrl</span></a><span class="hs-special">,</span><span>
+</span><a name="line-42"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#listCompetitions"><span class="hs-identifier hs-var">listCompetitions</span></a><span class="hs-special">,</span><span>
+</span><a name="line-43"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#listEventTypes"><span class="hs-identifier hs-var">listEventTypes</span></a><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listMarketBook"><span class="hs-identifier hs-var">listMarketBook</span></a><span class="hs-special">,</span><span>
+</span><a name="line-44"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#listMarketCatalogue"><span class="hs-identifier hs-var">listMarketCatalogue</span></a><span class="hs-special">,</span><span>
+</span><a name="line-45"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#listMarkets"><span class="hs-identifier hs-var">listMarkets</span></a><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#listTimeRanges"><span class="hs-identifier hs-var">listTimeRanges</span></a><span class="hs-special">,</span><span>
+</span><a name="line-46"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#placeOrders"><span class="hs-identifier hs-var">placeOrders</span></a><span class="hs-special">,</span><span> </span><a href="BfHaskell.BettingAPI.Betting.html#replaceOrders"><span class="hs-identifier hs-var">replaceOrders</span></a><span class="hs-special">,</span><span>
+</span><a name="line-47"></a><span>                                                </span><a href="BfHaskell.BettingAPI.Betting.html#runBettingHandler"><span class="hs-identifier hs-var">runBettingHandler</span></a><span class="hs-special">)</span><span>
+</span><a name="line-48"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.BettingAPI.Request.html"><span class="hs-identifier">BfHaskell.BettingAPI.Request</span></a><span>
+</span><a name="line-49"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.BettingAPI.Response.html"><span class="hs-identifier">BfHaskell.BettingAPI.Response</span></a><span>
+</span><a name="line-50"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.BettingAPI.Types.html"><span class="hs-identifier">BfHaskell.BettingAPI.Types</span></a><span>
+</span><a name="line-51"></a></pre></body></html>

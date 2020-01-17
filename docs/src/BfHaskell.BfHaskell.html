@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-- |</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- Module      :  BfHaskell.BfHaskell</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- Copyright   :  (C) 2020 Martins Erts</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- License     :  MIT</span><span>
+</span><a name="line-6"></a><span class="hs-comment">-- Maintainer  :  Martins Erts &lt;martins.erts@gmail.com&gt;</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><a name="line-8"></a><span class="hs-comment">--</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- Module implements [Betfair Exchange API](https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/API+Overview).</span><span>
+</span><a name="line-10"></a><span class="hs-comment">--</span><span>
+</span><a name="line-11"></a><span class="hs-comment">-- It uses free monad library [Polysemy](https://github.com/polysemy-research/polysemy).</span><span>
+</span><a name="line-12"></a><span class="hs-comment">--</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- Below is an example program, that looks up next horse race, waits for it to go live,</span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- get closed, and then prints the winner of the race.</span><span>
+</span><a name="line-15"></a><span class="hs-comment">--</span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- It uses:</span><span>
+</span><a name="line-17"></a><span class="hs-comment">--</span><span>
+</span><a name="line-18"></a><span class="hs-comment">--      * [Betting API](http://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Betting+API)</span><span>
+</span><a name="line-19"></a><span class="hs-comment">--      * [Heartbeat API](https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Heartbeat+API)</span><span>
+</span><a name="line-20"></a><span class="hs-comment">--      * [Exchange Stream API](https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Exchange+Stream+API)</span><span>
+</span><a name="line-21"></a><span class="hs-comment">--</span><span>
+</span><a name="line-22"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-23"></a><span class="hs-comment">-- {-\# LANGUAGE DataKinds           #-}</span><span>
+</span><a name="line-24"></a><span class="hs-comment">-- {-\# LANGUAGE FlexibleContexts    #-}</span><span>
+</span><a name="line-25"></a><span class="hs-comment">-- {-\# LANGUAGE FlexibleInstances   #-}</span><span>
+</span><a name="line-26"></a><span class="hs-comment">-- {-\# LANGUAGE GADTs               #-}</span><span>
+</span><a name="line-27"></a><span class="hs-comment">-- {-\# LANGUAGE OverloadedLabels    #-}</span><span>
+</span><a name="line-28"></a><span class="hs-comment">-- {-\# LANGUAGE OverloadedStrings   #-}</span><span>
+</span><a name="line-29"></a><span class="hs-comment">-- {-\# LANGUAGE PolyKinds           #-}</span><span>
+</span><a name="line-30"></a><span class="hs-comment">-- {-\# LANGUAGE RankNTypes          #-}</span><span>
+</span><a name="line-31"></a><span class="hs-comment">-- {-\# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><a name="line-32"></a><span class="hs-comment">-- {-\# LANGUAGE TypeFamilies        #-}</span><span>
+</span><a name="line-33"></a><span class="hs-comment">--</span><span>
+</span><a name="line-34"></a><span class="hs-comment">-- module Main where</span><span>
+</span><a name="line-35"></a><span class="hs-comment">--</span><span>
+</span><a name="line-36"></a><span class="hs-comment">-- import           BfHaskell.DSL.Betting</span><span>
+</span><a name="line-37"></a><span class="hs-comment">-- import           BfHaskell.DSL.Heartbeat</span><span>
+</span><a name="line-38"></a><span class="hs-comment">-- import           BfHaskell.DSL.Login</span><span>
+</span><a name="line-39"></a><span class="hs-comment">-- import           BfHaskell.DSL.Streaming</span><span>
+</span><a name="line-40"></a><span class="hs-comment">-- import           BfHaskell.StreamingAPI.Model</span><span>
+</span><a name="line-41"></a><span class="hs-comment">-- import           Control.Lens</span><span>
+</span><a name="line-42"></a><span class="hs-comment">-- import           Control.Monad                (forM_, forever, when)</span><span>
+</span><a name="line-43"></a><span class="hs-comment">-- import           Control.Monad.IO.Class       (liftIO)</span><span>
+</span><a name="line-44"></a><span class="hs-comment">-- import qualified Data.Map                     as M</span><span>
+</span><a name="line-45"></a><span class="hs-comment">-- import           Data.Text                    (Text)</span><span>
+</span><a name="line-46"></a><span class="hs-comment">-- import qualified Data.Text                    as T</span><span>
+</span><a name="line-47"></a><span class="hs-comment">-- import           Data.Time                    (addUTCTime, getCurrentTime)</span><span>
+</span><a name="line-48"></a><span class="hs-comment">-- import           Polysemy</span><span>
+</span><a name="line-49"></a><span class="hs-comment">-- import           Polysemy.Async</span><span>
+</span><a name="line-50"></a><span class="hs-comment">-- import           Polysemy.Error</span><span>
+</span><a name="line-51"></a><span class="hs-comment">-- import           Polysemy.Output</span><span>
+</span><a name="line-52"></a><span class="hs-comment">-- import           Polysemy.Resource</span><span>
+</span><a name="line-53"></a><span class="hs-comment">-- import           Polysemy.State</span><span>
+</span><a name="line-54"></a><span class="hs-comment">--</span><span>
+</span><a name="line-55"></a><span class="hs-comment">-- type FullMarketDetails = (MarketId, JsonMarketCatalogue)</span><span>
+</span><a name="line-56"></a><span class="hs-comment">--</span><span>
+</span><a name="line-57"></a><span class="hs-comment">-- data AppState = Initial</span><span>
+</span><a name="line-58"></a><span class="hs-comment">--               | HasRaceInFuture FullMarketDetails</span><span>
+</span><a name="line-59"></a><span class="hs-comment">--               | RaceInPlay FullMarketDetails</span><span>
+</span><a name="line-60"></a><span class="hs-comment">--</span><span>
+</span><a name="line-61"></a><span class="hs-comment">--</span><span>
+</span><a name="line-62"></a><span class="hs-comment">-- -- | Finds next horse race going in-play</span><span>
+</span><a name="line-63"></a><span class="hs-comment">-- findNextRace :: Members '[Embed IO, BettingHandler] r</span><span>
+</span><a name="line-64"></a><span class="hs-comment">--              =&gt; Text   -- ^ Event type id</span><span>
+</span><a name="line-65"></a><span class="hs-comment">--              -&gt; Sem r (Maybe JsonMarketCatalogue)</span><span>
+</span><a name="line-66"></a><span class="hs-comment">-- findNextRace eventTypeId = do</span><span>
+</span><a name="line-67"></a><span class="hs-comment">--     currentTime &lt;- liftIO getCurrentTime</span><span>
+</span><a name="line-68"></a><span class="hs-comment">--</span><span>
+</span><a name="line-69"></a><span class="hs-comment">--     let dateUntil = addUTCTime (60 * 60 * 24 * 5) currentTime</span><span>
+</span><a name="line-70"></a><span class="hs-comment">--         marketFilter = createMarketFilter eventTypeId</span><span>
+</span><a name="line-71"></a><span class="hs-comment">--                                           (Just currentTime)</span><span>
+</span><a name="line-72"></a><span class="hs-comment">--                                           (Just dateUntil)</span><span>
+</span><a name="line-73"></a><span class="hs-comment">--                                           Nothing -- No competition specified</span><span>
+</span><a name="line-74"></a><span class="hs-comment">--     JsonResponseListMarketCatalogue markets &lt;- listMarkets marketFilter</span><span>
+</span><a name="line-75"></a><span class="hs-comment">--     return $ markets ^? folded</span><span>
+</span><a name="line-76"></a><span class="hs-comment">--                 -- Only race in future</span><span>
+</span><a name="line-77"></a><span class="hs-comment">--                 . filteredBy (to _jmcatMarketStartTime . _Just . filtered (&gt;currentTime))</span><span>
+</span><a name="line-78"></a><span class="hs-comment">--                 -- Only races going in play with type ODDS</span><span>
+</span><a name="line-79"></a><span class="hs-comment">--                 . filteredBy (to _jmcatDescription . _Just . filtered validMarketDescription)</span><span>
+</span><a name="line-80"></a><span class="hs-comment">--</span><span>
+</span><a name="line-81"></a><span class="hs-comment">--   where</span><span>
+</span><a name="line-82"></a><span class="hs-comment">--     validMarketDescription description =</span><span>
+</span><a name="line-83"></a><span class="hs-comment">--         _jmdTurnInPlayEnabled description &amp;&amp; _jmdBettingType description == ODDS</span><span>
+</span><a name="line-84"></a><span class="hs-comment">--</span><span>
+</span><a name="line-85"></a><span class="hs-comment">-- -- | Updates state according to market changes</span><span>
+</span><a name="line-86"></a><span class="hs-comment">-- processMarketUpdate :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r</span><span>
+</span><a name="line-87"></a><span class="hs-comment">--                     =&gt; [MarketId]</span><span>
+</span><a name="line-88"></a><span class="hs-comment">--                     -&gt; M.Map MarketId MarketDetails</span><span>
+</span><a name="line-89"></a><span class="hs-comment">--                     -&gt; Sem r ()</span><span>
+</span><a name="line-90"></a><span class="hs-comment">-- processMarketUpdate marketIds cache = do</span><span>
+</span><a name="line-91"></a><span class="hs-comment">--     state &lt;- get</span><span>
+</span><a name="line-92"></a><span class="hs-comment">--     case state of</span><span>
+</span><a name="line-93"></a><span class="hs-comment">--         Initial -&gt; return ()</span><span>
+</span><a name="line-94"></a><span class="hs-comment">--                                                                                                                                                                                                                                                                                                                     [36/244]</span><span>
+</span><a name="line-95"></a><span class="hs-comment">--         -- We are waiting for upcoming race to go live.</span><span>
+</span><a name="line-96"></a><span class="hs-comment">--         -- If it went live, transition to next state: RaceInPlay</span><span>
+</span><a name="line-97"></a><span class="hs-comment">--         HasRaceInFuture (marketId, market) -&gt;</span><span>
+</span><a name="line-98"></a><span class="hs-comment">--             -- Find actual market details from cache</span><span>
+</span><a name="line-99"></a><span class="hs-comment">--             forM_ (M.lookup marketId cache) $ \md -&gt; do</span><span>
+</span><a name="line-100"></a><span class="hs-comment">--                 let inPlay = mdMarketDefinition . _Just . to marketDefinitionInPlay</span><span>
+</span><a name="line-101"></a><span class="hs-comment">--                                                 . _Just . only True</span><span>
+</span><a name="line-102"></a><span class="hs-comment">--                 -- Act only if there are changes on expected marketId</span><span>
+</span><a name="line-103"></a><span class="hs-comment">--                 when (elem marketId marketIds &amp;&amp; has inPlay md) $ do</span><span>
+</span><a name="line-104"></a><span class="hs-comment">--                     liftIO $ putStrLn $ T.unpack $ &quot;Race in play: &quot; &lt;&gt; _jmcatMarketName market</span><span>
+</span><a name="line-105"></a><span class="hs-comment">--                     put $ RaceInPlay (marketId, market)</span><span>
+</span><a name="line-106"></a><span class="hs-comment">--</span><span>
+</span><a name="line-107"></a><span class="hs-comment">--         -- Game is in play. Waiting for game to be closed</span><span>
+</span><a name="line-108"></a><span class="hs-comment">--         -- Next state: HasRaceInFuture</span><span>
+</span><a name="line-109"></a><span class="hs-comment">--         RaceInPlay (marketId, market) -&gt;</span><span>
+</span><a name="line-110"></a><span class="hs-comment">--             case M.lookup marketId cache of</span><span>
+</span><a name="line-111"></a><span class="hs-comment">--                 Just md -&gt; do</span><span>
+</span><a name="line-112"></a><span class="hs-comment">--                     let winner = md ^? mdMarketDefinition . _Just . to marketDefinitionRunners</span><span>
+</span><a name="line-113"></a><span class="hs-comment">--                                     . _Just . folded</span><span>
+</span><a name="line-114"></a><span class="hs-comment">--                                     . filteredBy (to runnerDefinitionStatus . _Just . only E'Status2'WINNER)</span><span>
+</span><a name="line-115"></a><span class="hs-comment">--                     forM_ winner $ \rd -&gt; do</span><span>
+</span><a name="line-116"></a><span class="hs-comment">--                         forM_ (findRunnerName market $ runnerDefinitionId rd) $ \winnerName -&gt;</span><span>
+</span><a name="line-117"></a><span class="hs-comment">--                             liftIO $ putStrLn $ T.unpack $ &quot;Race winner: &quot; &lt;&gt; winnerName</span><span>
+</span><a name="line-118"></a><span class="hs-comment">--</span><span>
+</span><a name="line-119"></a><span class="hs-comment">--                         subsribeToNextGame</span><span>
+</span><a name="line-120"></a><span class="hs-comment">--</span><span>
+</span><a name="line-121"></a><span class="hs-comment">--                 -- Market already removed from cache. Move on to next race</span><span>
+</span><a name="line-122"></a><span class="hs-comment">--                 Nothing -&gt; do</span><span>
+</span><a name="line-123"></a><span class="hs-comment">--                     liftIO $ putStrLn $ T.unpack $ &quot;Race is closed: &quot; &lt;&gt; _jmcatMarketName market</span><span>
+</span><a name="line-124"></a><span class="hs-comment">--                     subsribeToNextGame</span><span>
+</span><a name="line-125"></a><span class="hs-comment">--   where</span><span>
+</span><a name="line-126"></a><span class="hs-comment">--     -- | Find runner name in market catalogue</span><span>
+</span><a name="line-127"></a><span class="hs-comment">--     findRunnerName market (Just runnerId) =</span><span>
+</span><a name="line-128"></a><span class="hs-comment">--         market ^? to _jmcatRunners . _Just . folded</span><span>
+</span><a name="line-129"></a><span class="hs-comment">--                 . filteredBy (to _jrcSelectionId . only runnerId)</span><span>
+</span><a name="line-130"></a><span class="hs-comment">--                 . to _jrcRunnerName</span><span>
+</span><a name="line-131"></a><span class="hs-comment">--     findRunnerName _ _ = Nothing</span><span>
+</span><a name="line-132"></a><span class="hs-comment">--</span><span>
+</span><a name="line-133"></a><span class="hs-comment">-- -- | Finds next race and subscribes to it</span><span>
+</span><a name="line-134"></a><span class="hs-comment">-- subsribeToNextGame :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r</span><span>
+</span><a name="line-135"></a><span class="hs-comment">--                    =&gt; Sem r ()</span><span>
+</span><a name="line-136"></a><span class="hs-comment">-- subsribeToNextGame = do</span><span>
+</span><a name="line-137"></a><span class="hs-comment">--     let eventTypeId = &quot;7&quot; -- Horse racing</span><span>
+</span><a name="line-138"></a><span class="hs-comment">--     nextGame &lt;- findNextRace eventTypeId</span><span>
+</span><a name="line-139"></a><span class="hs-comment">--     case nextGame of</span><span>
+</span><a name="line-140"></a><span class="hs-comment">--       Just market -&gt; do</span><span>
+</span><a name="line-141"></a><span class="hs-comment">--           forM_ (_jmcatMarketStartTime market) $ \t -&gt;</span><span>
+</span><a name="line-142"></a><span class="hs-comment">--               liftIO $ putStrLn $ &quot;Next race: '&quot; &lt;&gt; T.unpack (_jmcatMarketName market)</span><span>
+</span><a name="line-143"></a><span class="hs-comment">--                                 &lt;&gt; &quot;', starting at: &quot; &lt;&gt; show t</span><span>
+</span><a name="line-144"></a><span class="hs-comment">--</span><span>
+</span><a name="line-145"></a><span class="hs-comment">--           let marketId = _jmcatMarketId market</span><span>
+</span><a name="line-146"></a><span class="hs-comment">--           -- Subscribe to market stream</span><span>
+</span><a name="line-147"></a><span class="hs-comment">--           subscribeToMarkets $ mkMarketListFilter [marketId]</span><span>
+</span><a name="line-148"></a><span class="hs-comment">--           -- Update state</span><span>
+</span><a name="line-149"></a><span class="hs-comment">--           put $ HasRaceInFuture (marketId, market)</span><span>
+</span><a name="line-150"></a><span class="hs-comment">--       Nothing -&gt; throw &quot;Failed to find next game&quot;</span><span>
+</span><a name="line-151"></a><span class="hs-comment">--</span><span>
+</span><a name="line-152"></a><span class="hs-comment">-- -- | Stream message processing loop</span><span>
+</span><a name="line-153"></a><span class="hs-comment">-- followHorseRacing :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r</span><span>
+</span><a name="line-154"></a><span class="hs-comment">--                   =&gt; Sem r ()</span><span>
+</span><a name="line-155"></a><span class="hs-comment">-- followHorseRacing = forever $ do</span><span>
+</span><a name="line-156"></a><span class="hs-comment">--     msg &lt;- getNextStreamMessage</span><span>
+</span><a name="line-157"></a><span class="hs-comment">--     case msg of</span><span>
+</span><a name="line-158"></a><span class="hs-comment">--       SMConnectionStateChanged SMCSConnected -&gt; do</span><span>
+</span><a name="line-159"></a><span class="hs-comment">--           liftIO $ putStrLn &quot;Connected, gathering initial data...&quot;</span><span>
+</span><a name="line-160"></a><span class="hs-comment">--           subsribeToNextGame</span><span>
+</span><a name="line-161"></a><span class="hs-comment">--</span><span>
+</span><a name="line-162"></a><span class="hs-comment">--       -- Match non empty list. Empty list means 'heartbeat' message was received</span><span>
+</span><a name="line-163"></a><span class="hs-comment">--       SMMarketUpdate marketIds@(_:_) -&gt;</span><span>
+</span><a name="line-164"></a><span class="hs-comment">--           getMarketCache &gt;&gt;= processMarketUpdate marketIds</span><span>
+</span><a name="line-165"></a><span class="hs-comment">--</span><span>
+</span><a name="line-166"></a><span class="hs-comment">--       _ -&gt; return ()</span><span>
+</span><a name="line-167"></a><span class="hs-comment">--</span><span>
+</span><a name="line-168"></a><span class="hs-comment">-- fetchLoginCredentials :: Members [Embed IO, Error String] r =&gt; Sem r LoginCredentials</span><span>
+</span><a name="line-169"></a><span class="hs-comment">-- fetchLoginCredentials =</span><span>
+</span><a name="line-170"></a><span class="hs-comment">--     newLoginCredentials \&quot;John\&quot;                     -- Username</span><span>
+</span><a name="line-171"></a><span class="hs-comment">--                         \&quot;Pass123\&quot;                  -- Password</span><span>
+</span><a name="line-172"></a><span class="hs-comment">--                         &quot;J7$q*cFQ[dxvCMJj&quot;           -- App key</span><span>
+</span><a name="line-173"></a><span class="hs-comment">--                         &quot;public.pem&quot;                 -- Public certificate</span><span>
+</span><a name="line-174"></a><span class="hs-comment">--                         &quot;private.pem&quot;                -- Private key</span><span>
+</span><a name="line-175"></a><span class="hs-comment">--                         (fromInteger $ 4 * 60 * 60)  -- Token timeout - 4 hours</span><span>
+</span><a name="line-176"></a><span class="hs-comment">--</span><span>
+</span><a name="line-177"></a><span class="hs-comment">-- main :: IO ()</span><span>
+</span><a name="line-178"></a><span class="hs-comment">-- main = do</span><span>
+</span><a name="line-179"></a><span class="hs-comment">--     credsResult &lt;- runM . runError $ fetchLoginCredentials</span><span>
+</span><a name="line-180"></a><span class="hs-comment">--     case credsResult of</span><span>
+</span><a name="line-181"></a><span class="hs-comment">--       Left err -&gt; print err</span><span>
+</span><a name="line-182"></a><span class="hs-comment">--       Right creds -&gt; do</span><span>
+</span><a name="line-183"></a><span class="hs-comment">--         res &lt;- runFinal</span><span>
+</span><a name="line-184"></a><span class="hs-comment">--              . embedToFinal</span><span>
+</span><a name="line-185"></a><span class="hs-comment">--              . asyncToIOFinal</span><span>
+</span><a name="line-186"></a><span class="hs-comment">--              . resourceToIOFinal</span><span>
+</span><a name="line-187"></a><span class="hs-comment">--              . errorToIOFinal</span><span>
+</span><a name="line-188"></a><span class="hs-comment">--              . ignoreOutput</span><span>
+</span><a name="line-189"></a><span class="hs-comment">--              . evalState Initial</span><span>
+</span><a name="line-190"></a><span class="hs-comment">--              . runLoginHandler creds Nothing</span><span>
+</span><a name="line-191"></a><span class="hs-comment">--              . runStreamingHandler defaultStreamingConnectionInfo</span><span>
+</span><a name="line-192"></a><span class="hs-comment">--              . runBettingHandler defaultBettingUrl Nothing</span><span>
+</span><a name="line-193"></a><span class="hs-comment">--              . runHeartbeatHandler defaultHeartbeatUrl Nothing 60</span><span>
+</span><a name="line-194"></a><span class="hs-comment">--              $ followHorseRacing</span><span>
+</span><a name="line-195"></a><span class="hs-comment">--         either print (const $ pure ()) res</span><span>
+</span><a name="line-196"></a><span class="hs-comment">--</span><span>
+</span><a name="line-197"></a><span class="hs-comment">-- @</span><span>
+</span><a name="line-198"></a><span class="hs-comment">--</span><span>
+</span><a name="line-199"></a><span class="hs-comment">-- &lt;http://github.com/martinserts/bf-haskell&gt;</span><span>
+</span><a name="line-200"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">BfHaskell.BfHaskell</span><span>
+</span><a name="line-201"></a><span class="hs-special">(</span><span>
+</span><a name="line-202"></a><span>    </span><span class="hs-comment">-- * Login DSL</span><span>
+</span><a name="line-203"></a><span>    </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.DSL.Login.html"><span class="hs-identifier">BfHaskell.DSL.Login</span></a><span>
+</span><a name="line-204"></a><span>
+</span><a name="line-205"></a><span>    </span><span class="hs-comment">-- * Streaming DSL</span><span>
+</span><a name="line-206"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.DSL.Streaming.html"><span class="hs-identifier">BfHaskell.DSL.Streaming</span></a><span>
+</span><a name="line-207"></a><span>
+</span><a name="line-208"></a><span>    </span><span class="hs-comment">-- * Betting DSL</span><span>
+</span><a name="line-209"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.DSL.Betting.html"><span class="hs-identifier">BfHaskell.DSL.Betting</span></a><span>
+</span><a name="line-210"></a><span>
+</span><a name="line-211"></a><span>    </span><span class="hs-comment">-- * Heartbeat DSL</span><span>
+</span><a name="line-212"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.DSL.Heartbeat.html"><span class="hs-identifier">BfHaskell.DSL.Heartbeat</span></a><span>
+</span><a name="line-213"></a><span>
+</span><a name="line-214"></a><span>    </span><span class="hs-comment">-- * Helpers</span><span>
+</span><a name="line-215"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.Common.Logging.html"><span class="hs-identifier">BfHaskell.Common.Logging</span></a><span>
+</span><a name="line-216"></a><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">module</span><span> </span><a href="BfHaskell.Common.Odds.html"><span class="hs-identifier">BfHaskell.Common.Odds</span></a><span>
+</span><a name="line-217"></a><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><a name="line-218"></a><span>
+</span><a name="line-219"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.Common.Logging.html"><span class="hs-identifier">BfHaskell.Common.Logging</span></a><span>
+</span><a name="line-220"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.Common.Odds.html"><span class="hs-identifier">BfHaskell.Common.Odds</span></a><span>
+</span><a name="line-221"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.DSL.Betting.html"><span class="hs-identifier">BfHaskell.DSL.Betting</span></a><span>
+</span><a name="line-222"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.DSL.Heartbeat.html"><span class="hs-identifier">BfHaskell.DSL.Heartbeat</span></a><span>
+</span><a name="line-223"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.DSL.Login.html"><span class="hs-identifier">BfHaskell.DSL.Login</span></a><span>
+</span><a name="line-224"></a><span class="hs-keyword">import</span><span>           </span><a href="BfHaskell.DSL.Streaming.html"><span class="hs-identifier">BfHaskell.DSL.Streaming</span></a><span>
+</span><a name="line-225"></a></pre></body></html>

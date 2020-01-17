@@ -1,0 +1,176 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>BfHaskell.BfHaskell</title><link href="ocean.css" rel="stylesheet" type="text/css" title="Ocean" /><link rel="stylesheet" type="text/css" href="quick-jump.css" /><script src="haddock-bundle.min.js" async="async" type="text/javascript"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML" type="text/javascript"></script></head><body><div id="package-header"><ul class="links" id="page-menu"><li><a href="src/BfHaskell.BfHaskell.html">Source</a></li><li><a href="index.html">Contents</a></li><li><a href="doc-index.html">Index</a></li></ul><p class="caption">bf-haskell-0.1.0.0: Betfair Exchange API</p></div><div id="content"><div id="module-header"><table class="info"><tr><th valign="top">Copyright</th><td>(C) 2020 Martins Erts</td></tr><tr><th>License</th><td>MIT</td></tr><tr><th>Maintainer</th><td>Martins Erts &lt;martins.erts@gmail.com&gt;</td></tr><tr><th>Stability</th><td>experimental</td></tr><tr><th>Safe Haskell</th><td>None</td></tr><tr><th>Language</th><td>Haskell2010</td></tr></table><p class="caption">BfHaskell.BfHaskell</p></div><div id="table-of-contents"><p class="caption">Contents</p><ul><li><a href="#g:1">Login DSL</a></li><li><a href="#g:2">Streaming DSL</a></li><li><a href="#g:3">Betting DSL</a></li><li><a href="#g:4">Heartbeat DSL</a></li><li><a href="#g:5">Helpers</a></li></ul></div><div id="description"><p class="caption">Description</p><div class="doc"><p>Module implements <a href="https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/API+Overview">Betfair Exchange API</a>.</p><p>It uses free monad library <a href="https://github.com/polysemy-research/polysemy">Polysemy</a>.</p><p>Below is an example program, that looks up next horse race, waits for it to go live,
+ get closed, and then prints the winner of the race.</p><p>It uses:</p><ul><li><a href="http://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Betting+API">Betting API</a></li><li><a href="https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Heartbeat+API">Heartbeat API</a></li><li><a href="https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/Exchange+Stream+API">Exchange Stream API</a></li></ul><pre>{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE OverloadedLabels    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+
+module Main where
+
+import           BfHaskell.DSL.Betting
+import           BfHaskell.DSL.Heartbeat
+import           BfHaskell.DSL.Login
+import           BfHaskell.DSL.Streaming
+import           BfHaskell.StreamingAPI.Model
+import           Control.Lens
+import           Control.Monad                (forM_, forever, when)
+import           Control.Monad.IO.Class       (liftIO)
+import qualified Data.Map                     as M
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import           Data.Time                    (addUTCTime, getCurrentTime)
+import           Polysemy
+import           Polysemy.Async
+import           Polysemy.Error
+import           Polysemy.Output
+import           Polysemy.Resource
+import           Polysemy.State
+
+type FullMarketDetails = (MarketId, JsonMarketCatalogue)
+
+data AppState = Initial
+              | HasRaceInFuture FullMarketDetails
+              | RaceInPlay FullMarketDetails
+
+
+-- | Finds next horse race going in-play
+findNextRace :: Members '[Embed IO, BettingHandler] r
+             =&gt; Text   -- ^ Event type id
+             -&gt; Sem r (Maybe JsonMarketCatalogue)
+findNextRace eventTypeId = do
+    currentTime &lt;- liftIO getCurrentTime
+
+    let dateUntil = addUTCTime (60 * 60 * 24 * 5) currentTime
+        marketFilter = createMarketFilter eventTypeId
+                                          (Just currentTime)
+                                          (Just dateUntil)
+                                          Nothing -- No competition specified
+    JsonResponseListMarketCatalogue markets &lt;- listMarkets marketFilter
+    return $ markets ^? folded
+                -- Only race in future
+                . filteredBy (to _jmcatMarketStartTime . _Just . filtered (&gt;currentTime))
+                -- Only races going in play with type ODDS
+                . filteredBy (to _jmcatDescription . _Just . filtered validMarketDescription)
+
+  where
+    validMarketDescription description =
+        _jmdTurnInPlayEnabled description &amp;&amp; _jmdBettingType description == ODDS
+
+-- | Updates state according to market changes
+processMarketUpdate :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r
+                    =&gt; [MarketId]
+                    -&gt; M.Map MarketId MarketDetails
+                    -&gt; Sem r ()
+processMarketUpdate marketIds cache = do
+    state &lt;- get
+    case state of
+        Initial -&gt; return ()
+                                                                                                                                                                                                                                                                                                                    [36/244]
+        -- We are waiting for upcoming race to go live.
+        -- If it went live, transition to next state: RaceInPlay
+        HasRaceInFuture (marketId, market) -&gt;
+            -- Find actual market details from cache
+            forM_ (M.lookup marketId cache) $ md -&gt; do
+                let inPlay = mdMarketDefinition . _Just . to marketDefinitionInPlay
+                                                . _Just . only True
+                -- Act only if there are changes on expected marketId
+                when (elem marketId marketIds &amp;&amp; has inPlay md) $ do
+                    liftIO $ putStrLn $ T.unpack $ &quot;Race in play: &quot; &lt;&gt; _jmcatMarketName market
+                    put $ RaceInPlay (marketId, market)
+
+        -- Game is in play. Waiting for game to be closed
+        -- Next state: HasRaceInFuture
+        RaceInPlay (marketId, market) -&gt;
+            case M.lookup marketId cache of
+                Just md -&gt; do
+                    let winner = md ^? mdMarketDefinition . _Just . to marketDefinitionRunners
+                                    . _Just . folded
+                                    . filteredBy (to runnerDefinitionStatus . _Just . only E<code>Status2</code>WINNER)
+                    forM_ winner $ rd -&gt; do
+                        forM_ (findRunnerName market $ runnerDefinitionId rd) $ winnerName -&gt;
+                            liftIO $ putStrLn $ T.unpack $ &quot;Race winner: &quot; &lt;&gt; winnerName
+
+                        subsribeToNextGame
+
+                -- Market already removed from cache. Move on to next race
+                Nothing -&gt; do
+                    liftIO $ putStrLn $ T.unpack $ &quot;Race is closed: &quot; &lt;&gt; _jmcatMarketName market
+                    subsribeToNextGame
+  where
+    -- | Find runner name in market catalogue
+    findRunnerName market (Just runnerId) =
+        market ^? to _jmcatRunners . _Just . folded
+                . filteredBy (to _jrcSelectionId . only runnerId)
+                . to _jrcRunnerName
+    findRunnerName _ _ = Nothing
+
+-- | Finds next race and subscribes to it
+subsribeToNextGame :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r
+                   =&gt; Sem r ()
+subsribeToNextGame = do
+    let eventTypeId = &quot;7&quot; -- Horse racing
+    nextGame &lt;- findNextRace eventTypeId
+    case nextGame of
+      Just market -&gt; do
+          forM_ (_jmcatMarketStartTime market) $ t -&gt;
+              liftIO $ putStrLn $ &quot;Next race: '&quot; &lt;&gt; T.unpack (_jmcatMarketName market)
+                                &lt;&gt; &quot;', starting at: &quot; &lt;&gt; show t
+
+          let marketId = _jmcatMarketId market
+          -- Subscribe to market stream
+          subscribeToMarkets $ mkMarketListFilter [marketId]
+          -- Update state
+          put $ HasRaceInFuture (marketId, market)
+      Nothing -&gt; throw &quot;Failed to find next game&quot;
+
+-- | Stream message processing loop
+followHorseRacing :: Members '[Embed IO, StreamingHandler, BettingHandler, State AppState, Error String] r
+                  =&gt; Sem r ()
+followHorseRacing = forever $ do
+    msg &lt;- getNextStreamMessage
+    case msg of
+      SMConnectionStateChanged SMCSConnected -&gt; do
+          liftIO $ putStrLn &quot;Connected, gathering initial data...&quot;
+          subsribeToNextGame
+
+      -- Match non empty list. Empty list means <code>heartbeat</code> message was received
+      SMMarketUpdate marketIds@(_:_) -&gt;
+          getMarketCache &gt;&gt;= processMarketUpdate marketIds
+
+      _ -&gt; return ()
+
+fetchLoginCredentials :: Members [Embed IO, Error String] r =&gt; Sem r LoginCredentials
+fetchLoginCredentials =
+    newLoginCredentials &quot;John&quot;                     -- Username
+                        &quot;Pass123&quot;                  -- Password
+                        &quot;J7$q*cFQ[dxvCMJj&quot;           -- App key
+                        &quot;public.pem&quot;                 -- Public certificate
+                        &quot;private.pem&quot;                -- Private key
+                        (fromInteger $ 4 * 60 * 60)  -- Token timeout - 4 hours
+
+main :: IO ()
+main = do
+    credsResult &lt;- runM . runError $ fetchLoginCredentials
+    case credsResult of
+      Left err -&gt; print err
+      Right creds -&gt; do
+        res &lt;- runFinal
+             . embedToFinal
+             . asyncToIOFinal
+             . resourceToIOFinal
+             . errorToIOFinal
+             . ignoreOutput
+             . evalState Initial
+             . runLoginHandler creds Nothing
+             . runStreamingHandler defaultStreamingConnectionInfo
+             . runBettingHandler defaultBettingUrl Nothing
+             . runHeartbeatHandler defaultHeartbeatUrl Nothing 60
+             $ followHorseRacing
+        either print (const $ pure ()) res
+
+</pre><p><a href="http://github.com/martinserts/bf-haskell">http://github.com/martinserts/bf-haskell</a></p></div></div><div id="synopsis"><details id="syn"><summary>Synopsis</summary><ul class="details-toggle" data-details-id="syn"><li class="src short">module <a href="BfHaskell-DSL-Login.html">BfHaskell.DSL.Login</a></li><li class="src short">module <a href="BfHaskell-DSL-Streaming.html">BfHaskell.DSL.Streaming</a></li><li class="src short">module <a href="BfHaskell-DSL-Betting.html">BfHaskell.DSL.Betting</a></li><li class="src short">module <a href="BfHaskell-DSL-Heartbeat.html">BfHaskell.DSL.Heartbeat</a></li><li class="src short">module <a href="BfHaskell-Common-Logging.html">BfHaskell.Common.Logging</a></li><li class="src short">module <a href="BfHaskell-Common-Odds.html">BfHaskell.Common.Odds</a></li></ul></details></div><div id="interface"><a href="#g:1" id="g:1"><h1>Login DSL</h1></a><div class="top"><p class="src">module <a href="BfHaskell-DSL-Login.html">BfHaskell.DSL.Login</a></p></div><a href="#g:2" id="g:2"><h1>Streaming DSL</h1></a><div class="top"><p class="src">module <a href="BfHaskell-DSL-Streaming.html">BfHaskell.DSL.Streaming</a></p></div><a href="#g:3" id="g:3"><h1>Betting DSL</h1></a><div class="top"><p class="src">module <a href="BfHaskell-DSL-Betting.html">BfHaskell.DSL.Betting</a></p></div><a href="#g:4" id="g:4"><h1>Heartbeat DSL</h1></a><div class="top"><p class="src">module <a href="BfHaskell-DSL-Heartbeat.html">BfHaskell.DSL.Heartbeat</a></p></div><a href="#g:5" id="g:5"><h1>Helpers</h1></a><div class="top"><p class="src">module <a href="BfHaskell-Common-Logging.html">BfHaskell.Common.Logging</a></p></div><div class="top"><p class="src">module <a href="BfHaskell-Common-Odds.html">BfHaskell.Common.Odds</a></p></div></div></div><div id="footer"><p>Produced by <a href="http://www.haskell.org/haddock/">Haddock</a> version 2.22.0</p></div></body></html>
