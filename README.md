@@ -2,14 +2,10 @@
 
 ## Overview
 
-`bf-haskell` is a Haskell library that allows to use
+`bf-haskell` is a Haskell library that implements a client for
 [Betfair Exchange API](https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/API+Overview).
 
-It uses free monad implementation [Polysemy](https://github.com/polysemy-research/polysemy).
-
-## Documentation
-
-See [here](docs/index.html)
+It uses _free monad_ library [Polysemy](https://github.com/polysemy-research/polysemy).
 
 ## Example
 
@@ -197,3 +193,8 @@ main = do
              $ followHorseRacing
         either print (const $ pure ()) res
 ```
+
+## Documentation
+
+See [here](docs/index.html)
+
