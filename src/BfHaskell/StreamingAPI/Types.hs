@@ -18,7 +18,7 @@ module BfHaskell.StreamingAPI.Types
   , scStatus, scStore, scSegments
   , StreamMessageParser(..)
   , StreamingState(..)
-  , ssStreamBuffer, ssConnectionId, ssAuthMsgId
+  , ssStreamBuffer, ssConnectionId, ssAuthMsgId, ssLastCleanup
   , SMConnectionState(..)
   , BetId, MarketId, Handicap, SelectionId
   , StreamingMessage(..)
@@ -46,6 +46,7 @@ import           Data.Default
 import qualified Data.Map                      as M
 import qualified Data.Sequence                 as Seq
 import           Data.Text                     (Text)
+import           Data.Time.Clock               (UTCTime)
 import           Polysemy
 
 -- | Stream message delimiter
@@ -108,12 +109,13 @@ instance StreamMessageParser OrderChangeMessage OrderMarketChange where
 
 -- | State used internally by streaming API
 data StreamingState = StreamingState
-    { _ssStreamBuffer :: !ByteString     -- ^ Temporary buffer of incoming data
+    { _ssStreamBuffer :: ByteString     -- ^ Temporary buffer of incoming data
     , _ssConnectionId :: Maybe Text     -- ^ Connection id received initially
     , _ssAuthMsgId    :: Maybe Int      -- ^ Authentication message id
+    , _ssLastCleanup  :: Maybe UTCTime  -- ^ Last cleanup run at
     }
 instance Default StreamingState where
-        def = StreamingState mempty Nothing Nothing
+        def = StreamingState mempty Nothing Nothing Nothing
 
 makeLenses ''StreamingState
 

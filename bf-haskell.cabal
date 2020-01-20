@@ -45,6 +45,7 @@ library
                      BfHaskell.StreamingAPI.StreamingComm,
                      BfHaskell.StreamingAPI.CommandExecutor,
                      BfHaskell.StreamingAPI.SslClient,
+                     BfHaskell.StreamingAPI.VirtualPrices,
                      BfHaskell.BettingAPI.Types,
                      BfHaskell.BettingAPI.Request,
                      BfHaskell.BettingAPI.Response,

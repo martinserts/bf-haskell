@@ -17,6 +17,7 @@ module BfHaskell.StreamingAPI.SslClient
 ) where
 
 import           BfHaskell.Common.Logging
+import           BfHaskell.Common.Odds                   (OddsTree, newTree)
 import           BfHaskell.DSL.Login                     (LoginHandler,
                                                           SessionToken (..),
                                                           fetchToken, getAppKey)
@@ -27,8 +28,10 @@ import           BfHaskell.StreamingAPI.StreamingComm    (CommCentre,
                                                           modifyMarketCache,
                                                           modifyOrderCache,
                                                           storeConnection)
-import           BfHaskell.StreamingAPI.StreamingMarkets (extractMarketChanges)
-import           BfHaskell.StreamingAPI.StreamingOrders  (extractOrderChanges)
+import           BfHaskell.StreamingAPI.StreamingMarkets (cleanupMarket,
+                                                          extractMarketChanges)
+import           BfHaskell.StreamingAPI.StreamingOrders  (cleanupOrder,
+                                                          extractOrderChanges)
 import           BfHaskell.StreamingAPI.StreamingUtils   (sendStreamMessage,
                                                           updateStateProperty)
 import           BfHaskell.StreamingAPI.Types            (MarketDetails,
@@ -49,6 +52,7 @@ import           BfHaskell.StreamingAPI.Types            (MarketDetails,
                                                           scSubscriptionId,
                                                           ssAuthMsgId,
                                                           ssConnectionId,
+                                                          ssLastCleanup,
                                                           ssStreamBuffer)
 import           Control.Lens                            (over, set, view)
 import           Control.Monad                           (forM, guard, join,
@@ -67,6 +71,8 @@ import           Data.Maybe                              (catMaybes, fromMaybe,
                                                           isNothing)
 import qualified Data.Sequence                           as Seq
 import qualified Data.Text                               as T
+import           Data.Time.Clock                         (addUTCTime,
+                                                          getCurrentTime)
 import           Data.TLSSetting                         (TrustedCAStore (SystemCAStore),
                                                           makeClientParams)
 import           Network.TLS                             (ClientParams (..), MaxFragmentEnum (MaxFragment4096))
@@ -82,15 +88,18 @@ import           System.IO.Streams.TLS                   (TLSConnection,
                                                           connect)
 
 class StreamChangeExtractor c k v | c -> k v where
-    extractChanges :: Member (State (StreamCache c k v)) r
+    extractChanges :: Members '[State (StreamCache c k v), Reader OddsTree] r
                    => c
                    -> Sem r (Maybe k)
+    cleanup :: Member (State (StreamCache c k v)) r => Sem r ()
 
 instance StreamChangeExtractor MarketChange MarketId MarketDetails where
     extractChanges = extractMarketChanges
+    cleanup = cleanupMarket
 
 instance StreamChangeExtractor OrderMarketChange MarketId OrderRunnerTable where
     extractChanges = extractOrderChanges
+    cleanup = cleanupOrder
 
 
 data StreamReadResult = SRRGotLine StreamResponse
@@ -121,12 +130,14 @@ runSslClient comm connectionInfo = do
     startAction _rs =
         void . runState def
              . runReader comm
+             . runReader newTree
              $ connectAndAuthenticate connectionInfo
 
 connectAndAuthenticate :: Members '[Embed IO,
                                     Output LogMessage,
                                     Resource,
                                     Reader CommCentre,
+                                    Reader OddsTree,
                                     State StreamingState,
                                     LoginHandler,
                                     Error String] r
@@ -167,10 +178,37 @@ connectAndAuthenticate (StreamingConnectionInfo hostName port) = do
 
     logDebug "connectAndAuthenticate - finished"
 
+
+-- | Cleanup order and market caches
+runCleanup :: Members '[Embed IO,
+                        Reader CommCentre,
+                        State StreamingState] r
+           => Sem r ()
+runCleanup = do
+    state <- get
+    currentTime <- liftIO getCurrentTime
+
+    let timeout = 60 * 5 -- 5 minutes
+        expiryTime = addUTCTime timeout <$> _ssLastCleanup state
+        expired = maybe True (< currentTime) expiryTime
+
+    when expired $ do
+        comm <- ask
+        liftIO $ do
+            -- Run Market cleanup
+            modifyMarketCache comm $ \mc ->
+                run . runState mc $ cleanup
+            -- Run Order cleanup
+            modifyOrderCache comm $ \oc ->
+                run . runState oc $ cleanup
+        -- Update last cleanup date
+        modify . set ssLastCleanup $ Just currentTime
+
 -- | Processes stream until it is interrupted
 processStream :: Members '[Embed IO,
                           Output LogMessage,
                           Reader CommCentre,
+                          Reader OddsTree,
                           State StreamingState,
                           LoginHandler,
                           Error String] r
@@ -182,6 +220,8 @@ processStream conn = do
     go
   where
     go = do
+        runCleanup
+
         res <- fetchLine conn
         logDebug $ T.pack $ show res
         case res of
@@ -226,6 +266,7 @@ parseBuffer = do
 processLine :: Members '[Embed IO,
                          Output LogMessage,
                          Reader CommCentre,
+                         Reader OddsTree,
                          State StreamingState,
                          LoginHandler,
                          Error String] r
@@ -258,36 +299,42 @@ processLine _conn (SROrderChangeMessage om)  = do
     logDebug $ "ProcessLine: " <> (T.pack . show $ om)
 
     comm <- ask
-    changes <- liftIO $ modifyOrderCache comm updateOrderCache
+    oddsTree <- ask
+    changes <- liftIO $ modifyOrderCache comm (updateOrderCache oddsTree)
 
     case changes of
       Nothing -> return ()
       Just c  -> liftIO $ addClientUpdate comm $ SMOrderUpdate c
 
   where
-    updateOrderCache orderCache =
-        run . runState orderCache . runNonDet $ processMessage om
+    updateOrderCache oddsTree orderCache =
+        run . runState orderCache
+            . runReader oddsTree
+            . runNonDet $ processMessage om
 
 processLine _conn (SRMarketChangeMessage mm) = do
     logDebug $ "ProcessLine: " <> (T.pack . show $ mm)
 
     comm <- ask
-    changes <- liftIO $ modifyMarketCache comm updateMarketCache
+    oddsTree <- ask
+    changes <- liftIO $ modifyMarketCache comm (updateMarketCache oddsTree)
 
     case changes of
       Nothing -> return ()
       Just c  -> liftIO $ addClientUpdate comm $ SMMarketUpdate c
 
   where
-    updateMarketCache marketCache =
-        run . runState marketCache . runNonDet $ processMessage mm
+    updateMarketCache oddsTree marketCache =
+        run . runState marketCache
+            . runReader oddsTree
+            . runNonDet $ processMessage mm
 
 -- | Processes MarketChange and OrderMarketChange messages, and updates state
 -- accordingly.
 -- Returns table of changes
 processMessage :: forall msg c k v r.
                   (StreamMessageParser msg c, StreamChangeExtractor c k v,
-                   Members '[NonDet, State (StreamCache c k v)] r)
+                   Members '[NonDet, Reader OddsTree, State (StreamCache c k v)] r)
                => msg
                -> Sem r [k]
 processMessage msg = do

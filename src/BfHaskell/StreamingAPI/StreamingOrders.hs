@@ -9,6 +9,7 @@
 module BfHaskell.StreamingAPI.StreamingOrders
 (
     extractOrderChanges
+  , cleanupOrder
   , OrderCache
 ) where
 
@@ -91,3 +92,6 @@ addOrder m order = fromMaybe m add
     add = do
         oid <- orderId order
         return $ M.insert oid order m
+
+cleanupOrder :: Member (State OrderCache) r => Sem r ()
+cleanupOrder = return ()

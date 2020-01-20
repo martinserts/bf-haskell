@@ -11,7 +11,8 @@
 module BfHaskell.Common.Odds
 (
     Odds
-  , NormalizedOdds
+  , OddsTree
+  , NormalizedOdds(..)
   , normalizeOdds
   , nextOdds
   , newTree

@@ -196,5 +196,5 @@ main = do
 
 ## Documentation
 
-See [here](docs/index.html)
+See [here](https://raw.githack.com/martinserts/bf-haskell/master/docs/index.html)
 
