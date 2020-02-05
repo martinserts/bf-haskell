@@ -34,7 +34,8 @@ import           Control.Lens
 import           Control.Monad.Trans.Class             (lift)
 import           Control.Monad.Trans.Maybe
 import           Data.Default
-import qualified Data.Map                              as M
+import           Data.List                             (foldl')
+import qualified Data.Map.Strict                       as M
 import           Data.Maybe                            (fromMaybe)
 import           Polysemy
 import           Polysemy.Reader
@@ -53,7 +54,7 @@ extractMarketChanges mc = do
     oddsTree <- ask
     runMaybeT $ do
         marketId <- MaybeT . pure $ marketChangeId mc
-        lift . modify . over scStore $ \store ->
+        lift . modify' . over scStore $ \store ->
             let currentMarketDetails = fromMaybe def $ M.lookup marketId store
                 -- Fetch market details from store or create new one if it's not found
                 updatedMarketDetails = updateMarket oddsTree currentMarketDetails mc
@@ -71,7 +72,7 @@ updateMarket ot md mc =
                 Nothing -> mr
                 Just rcs -> do
                     let isImage = marketChangeImg mc == Just True
-                    foldl (processRunner isImage) mr rcs
+                    foldl' (processRunner isImage) mr rcs
        & updateDisplayPrices ot md
 
 -- | Get corresponding runner from cache or create a new one
@@ -100,7 +101,7 @@ updateDisplayPrices :: OddsTree
                     -> MarketRunnerTable
                     -> MarketRunnerTable
 updateDisplayPrices ot md mrt =
-    foldl applyDisplayPrices mrt $ M.toList mrt
+    foldl' applyDisplayPrices mrt $ M.toList mrt
   where
     applyDisplayPrices mrt' (key@(sid, hc), mr) =
         let (back, lay) = displayPrices ot md sid hc mr
@@ -118,7 +119,7 @@ updateRunner rc mr =
 
 -- | Cleanup market cache
 cleanupMarket :: Member (State MarketCache) r => Sem r ()
-cleanupMarket = modify . over scStore $ \store ->
+cleanupMarket = modify' . over scStore $ \store ->
     M.filter (not . isClosed) store     -- Remove closed markets
   where
     isClosed = has $ mdMarketDefinition . _Just . to marketDefinitionStatus

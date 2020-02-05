@@ -24,7 +24,8 @@ import           Control.Lens                  (over, (%~), (&))
 import           Control.Monad.Trans.Class     (lift)
 import           Control.Monad.Trans.Maybe
 import           Data.Default
-import qualified Data.Map                      as M
+import           Data.List                     (foldl')
+import qualified Data.Map.Strict               as M
 import           Data.Maybe                    (fromMaybe)
 import           Polysemy
 import           Polysemy.State
@@ -40,7 +41,7 @@ extractOrderChanges :: Member (State OrderCache) r
 extractOrderChanges oc =
     runMaybeT $ do
         marketId <- MaybeT . pure $ orderMarketChangeId oc
-        lift . modify . over scStore $ \store ->
+        lift . modify' . over scStore $ \store ->
             -- Remove market if it is closed
             if isClosed then M.delete marketId store
             else
@@ -49,7 +50,7 @@ extractOrderChanges oc =
                 Just rcs ->
                   -- Fetch market details from store or create new one if it's not found
                   let currentRunnerTable = fromMaybe M.empty $ M.lookup marketId store
-                      updatedRunnerTable = foldl updateMarket currentRunnerTable rcs
+                      updatedRunnerTable = foldl' updateMarket currentRunnerTable rcs
                   -- Update market details in store
                   in M.insert marketId updatedRunnerTable store
         return marketId
@@ -83,7 +84,7 @@ updateRunner rc orderRunner =
 -- | Adds list of orders to order table
 updateOrders :: Maybe [Order] -> M.Map BetId Order -> M.Map BetId Order
 updateOrders Nothing orderTable       = orderTable
-updateOrders (Just orders) orderTable = foldl addOrder orderTable orders
+updateOrders (Just orders) orderTable = foldl' addOrder orderTable orders
 
 -- | Adds and order to order table
 addOrder :: M.Map BetId Order -> Order -> M.Map BetId Order

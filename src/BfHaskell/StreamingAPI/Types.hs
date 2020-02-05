@@ -43,7 +43,7 @@ import           Control.Lens                  (makeLenses)
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString               as B
 import           Data.Default
-import qualified Data.Map                      as M
+import qualified Data.Map.Strict               as M
 import qualified Data.Sequence                 as Seq
 import           Data.Text                     (Text)
 import           Data.Time.Clock               (UTCTime)
@@ -55,15 +55,15 @@ crlf = B.pack [13, 10]
 
 -- | Cache type used by market and order data caching
 data StreamCache c k v = StreamCache
-        { _scSubscriptionId :: Int
-        , _scClk            :: Maybe Text
-        , _scInitialClk     :: Maybe Text
-        , _scPt             :: Maybe Integer
-        , _scHeartbeatMs    :: Maybe Integer
-        , _scConflateMs     :: Maybe Integer
-        , _scStatus         :: Maybe Int
-        , _scStore          :: M.Map k v
-        , _scSegments       :: Seq.Seq [c]
+        { _scSubscriptionId :: !Int
+        , _scClk            :: !(Maybe Text)
+        , _scInitialClk     :: !(Maybe Text)
+        , _scPt             :: !(Maybe Integer)
+        , _scHeartbeatMs    :: !(Maybe Integer)
+        , _scConflateMs     :: !(Maybe Integer)
+        , _scStatus         :: !(Maybe Int)
+        , _scStore          :: !(M.Map k v)
+        , _scSegments       :: !(Seq.Seq [c])
         } deriving (Show)
 instance Default (StreamCache c k v) where
     def = StreamCache def def def def def def def def def
@@ -109,10 +109,10 @@ instance StreamMessageParser OrderChangeMessage OrderMarketChange where
 
 -- | State used internally by streaming API
 data StreamingState = StreamingState
-    { _ssStreamBuffer :: ByteString     -- ^ Temporary buffer of incoming data
-    , _ssConnectionId :: Maybe Text     -- ^ Connection id received initially
-    , _ssAuthMsgId    :: Maybe Int      -- ^ Authentication message id
-    , _ssLastCleanup  :: Maybe UTCTime  -- ^ Last cleanup run at
+    { _ssStreamBuffer :: !ByteString       -- ^ Temporary buffer of incoming data
+    , _ssConnectionId :: !(Maybe Text)     -- ^ Connection id received initially
+    , _ssAuthMsgId    :: !(Maybe Int)      -- ^ Authentication message id
+    , _ssLastCleanup  :: !(Maybe UTCTime)  -- ^ Last cleanup run at
     }
 instance Default StreamingState where
         def = StreamingState mempty Nothing Nothing Nothing
@@ -141,12 +141,12 @@ type MarketRunnerKey = (SelectionId, Handicap)
 
 -- | Market runner
 data MarketRunner = MarketRunner
-        { _mrBackPrices     :: LadderPrices -- ^ Best avaialable to back
-        , _mrLayPrices      :: LadderPrices -- ^ Best avaialable to lay
-        , _mrDispBackPrices :: LadderPrices -- ^ Best display avaialable to back
-        , _mrDispLayPrices  :: LadderPrices -- ^ Best display avaialable to lay
-        , _mrTv             :: Maybe Double -- ^ Total amount matched
-        , _mrLtp            :: Maybe Double -- ^ Last traded price
+        { _mrBackPrices     :: !LadderPrices   -- ^ Best avaialable to back
+        , _mrLayPrices      :: !LadderPrices   -- ^ Best avaialable to lay
+        , _mrDispBackPrices :: !LadderPrices   -- ^ Best display avaialable to back
+        , _mrDispLayPrices  :: !LadderPrices   -- ^ Best display avaialable to lay
+        , _mrTv             :: !(Maybe Double) -- ^ Total amount matched
+        , _mrLtp            :: !(Maybe Double) -- ^ Last traded price
         } deriving (Show)
 
 makeLenses ''MarketRunner
@@ -158,9 +158,9 @@ type MarketRunnerTable = M.Map MarketRunnerKey MarketRunner
 
 -- | Market details
 data MarketDetails = MarketDetails
-        { _mdMarketDefinition :: Maybe MarketDefinition -- ^ Market definition
-        , _mdTv               :: Maybe Double           -- ^ Total amount matched
-        , _mdMarketRunners    :: MarketRunnerTable      -- ^ Market runner table
+        { _mdMarketDefinition :: !(Maybe MarketDefinition) -- ^ Market definition
+        , _mdTv               :: !(Maybe Double)           -- ^ Total amount matched
+        , _mdMarketRunners    :: !MarketRunnerTable        -- ^ Market runner table
         }
 
 makeLenses ''MarketDetails
@@ -170,9 +170,9 @@ instance Default MarketDetails where
 
 -- | Order runner
 data OrderRunner = OrderRunner
-        { _orMatchedBacks :: PricePoints    -- ^ Full ladder of matched backs
-        , _orMatchedLays  :: PricePoints    -- ^ Full ladder of matched lays
-        , _orOrders       :: M.Map BetId Order  -- ^ Order list for this runner
+        { _orMatchedBacks :: !PricePoints    -- ^ Full ladder of matched backs
+        , _orMatchedLays  :: !PricePoints    -- ^ Full ladder of matched lays
+        , _orOrders       :: !(M.Map BetId Order)  -- ^ Order list for this runner
         } deriving (Show)
 
 makeLenses ''OrderRunner

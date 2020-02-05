@@ -202,7 +202,7 @@ runCleanup = do
             modifyOrderCache comm $ \oc ->
                 run . runState oc $ cleanup
         -- Update last cleanup date
-        modify . set ssLastCleanup $ Just currentTime
+        modify' . set ssLastCleanup $ Just currentTime
 
 -- | Processes stream until it is interrupted
 processStream :: Members '[Embed IO,
@@ -249,7 +249,7 @@ fetchLine conn = do
           mbytes <- liftIO $ IOS.read $ source conn
           case mbytes of
             Just bytes -> do
-                modify $ over ssStreamBuffer (`B.append` bytes)
+                modify' $ over ssStreamBuffer (`B.append` bytes)
                 fetchLine conn
             Nothing -> return SRRFinished
 
@@ -260,7 +260,7 @@ parseBuffer :: Members '[State StreamingState, Error String] r
 parseBuffer = do
     buffer <- gets _ssStreamBuffer
     forM (getCrLfLine buffer) $ \(json, remaining) -> do
-      modify $ set ssStreamBuffer remaining
+      modify' $ set ssStreamBuffer remaining
       fromEither $ A.eitherDecodeStrict json
 
 processLine :: Members '[Embed IO,
@@ -274,12 +274,12 @@ processLine :: Members '[Embed IO,
             -> StreamResponse
             -> Sem r ()
 processLine conn (SRConnectionMessage cm)   = do
-    modify $ set ssConnectionId $ connectionMessageConnectionId cm
+    modify' $ set ssConnectionId $ connectionMessageConnectionId cm
     SessionToken token <- fetchToken
     appKey <- getAppKey
 
     msgId <- getNextMessageId =<< ask
-    modify $ set ssAuthMsgId $ Just msgId
+    modify' $ set ssAuthMsgId $ Just msgId
 
     sendStreamMessage conn
         mkAuthenticationMessage
@@ -353,7 +353,7 @@ processMessage msg = do
     -- Clear store if segment starts for sub image
     when (changeType == Just E'Ct'SUB_IMAGE
        && (segmentType == Just E'SegmentType'SEG_START || isNothing segmentType))
-        $ modify $ set scStore M.empty
+        $ modify' $ set scStore M.empty
 
     -- Accumulate changes if segmentation is applied,
     -- otherwise apply changes to cache at once
@@ -362,13 +362,13 @@ processMessage msg = do
       Just st ->
           case st of
             E'SegmentType'SEG_START -> do
-                modify $ set scSegments $ Seq.singleton changes
+                modify' $ set scSegments $ Seq.singleton changes
                 return []
             E'SegmentType'SEG       -> do
-                modify $ over scSegments (Seq.|> changes)
+                modify' $ over scSegments (Seq.|> changes)
                 return []
             E'SegmentType'SEG_END   -> do
-                modify $ over scSegments (Seq.|> changes)
+                modify' $ over scSegments (Seq.|> changes)
                 seg <- gets $ view scSegments
                 applyChanges $ join . toList $ seg
 

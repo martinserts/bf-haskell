@@ -28,7 +28,7 @@ import           System.IO.Streams.TLS        (TLSConnection)
 
 updateStateProperty :: Member (State s) r => Lens' s (Maybe a) -> Maybe a -> Sem r ()
 updateStateProperty _ Nothing = return ()
-updateStateProperty lens v    = modify $ set lens v
+updateStateProperty lens v    = modify' $ set lens v
 
 updateStreamingProperty :: Lens' s (Maybe a) -> Maybe a -> s -> s
 updateStreamingProperty _ Nothing state = state

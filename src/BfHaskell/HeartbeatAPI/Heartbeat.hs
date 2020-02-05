@@ -35,12 +35,12 @@ import           Polysemy.Output
 import           Polysemy.Reader
 import           Polysemy.Resource
 
+
 data HeartbeatConfig = HeartbeatConfig
         { _hcUrl     :: Url 'Https
         , _hcOptions :: Option 'Https
         , _hcTimeout :: NominalDiffTime
         }
-
 
 
 runHeartbeatHandler :: Members '[Embed IO,
@@ -61,12 +61,8 @@ runHeartbeatHandler url httpConfig timeout sem = do
 
     bracket (
         runReader httpConfig' $ async $ forever $ do
-            -- Send heartbeat
-            _ <- heartbeatRequest heartbeatConfig
-            --logDebug $ toJsonText resp
-
-            -- Sleep
-            sleepBetweenCalls
+            _ <- heartbeatRequest heartbeatConfig   -- Send heartbeat
+            sleepBetweenCalls                       -- Sleep
         )                            -- Start heartbeat thread
         (liftIO . AS.cancel)         -- Kill hearbeat thread
         (const $ interpret (\case

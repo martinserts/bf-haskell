@@ -14,19 +14,20 @@ module BfHaskell.StreamingAPI.Prices
   , PricePoints(..), mkPricePoints, updatePricePoints
 ) where
 
-import           Control.Monad (guard)
+import           Control.Monad   (guard)
 import           Data.Default
-import qualified Data.Map      as M
-import           Data.Maybe    (mapMaybe)
-import           Data.Vector   ((//))
-import qualified Data.Vector   as V
+import           Data.List       (foldl')
+import qualified Data.Map.Strict as M
+import           Data.Maybe      (mapMaybe)
+import           Data.Vector     ((//))
+import qualified Data.Vector     as V
 
 type BetSize = Double
 type BetOdds = Double
 
 data Bet = Bet
-    { betSize :: BetSize
-    , betOdds :: BetOdds
+    { betSize :: !BetSize
+    , betOdds :: !BetOdds
     } deriving (Show, Eq)
 
 instance Default Bet where
@@ -73,7 +74,7 @@ updatePricePoints :: Maybe [[Double]] -> PricePoints -> PricePoints
 updatePricePoints Nothing old = old
 updatePricePoints (Just []) _ = def
 updatePricePoints (Just changes) old =
-    foldl update old changes
+    foldl' update old changes
   where
     update (PricePoints pp) [odds, 0]    = PricePoints $ M.delete odds pp
     update (PricePoints pp) [odds, size] = PricePoints $ M.insert odds size pp
