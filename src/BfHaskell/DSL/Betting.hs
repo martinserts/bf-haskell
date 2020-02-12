@@ -12,14 +12,10 @@ module BfHaskell.DSL.Betting
   BettingHandler(..)
 
   -- * Actions
-  , listEventTypes
-  , listTimeRanges
-  , listCompetitions
-  , listMarketCatalogue
-  , listMarkets
-  , listMarketBook
+  , listEventTypes, listTimeRanges, listCompetitions, listMarketCatalogue
+  , listMarkets, listMarketBook
   , placeOrders
-  , cancelOrders
+  , cancelOrders, cancelAllOrders
   , replaceOrders
 
  -- * Interpretations
@@ -36,7 +32,7 @@ module BfHaskell.DSL.Betting
 ) where
 
 import           BfHaskell.BettingAPI.Betting  (BettingHandler (..),
-                                                cancelOrders,
+                                                cancelAllOrders, cancelOrders,
                                                 createMarketFilter,
                                                 defaultBettingUrl,
                                                 listCompetitions,

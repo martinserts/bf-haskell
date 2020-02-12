@@ -16,14 +16,10 @@ module BfHaskell.BettingAPI.Betting
   , runBettingHandler
   , defaultBettingUrl
   , createMarketFilter
-  , listEventTypes
-  , listTimeRanges
-  , listCompetitions
-  , listMarketCatalogue
-  , listMarkets
-  , listMarketBook
+  , listEventTypes, listTimeRanges, listCompetitions, listMarketCatalogue
+  , listMarkets, listMarketBook
   , placeOrders
-  , cancelOrders
+  , cancelOrders, cancelAllOrders
   , replaceOrders
 ) where
 
@@ -67,6 +63,7 @@ data BettingHandler m a where
     ListMarketBook :: JsonRequestListMarketBook -> BettingHandler m JsonResponseListMarketBook
     PlaceOrders :: JsonRequestPlaceOrders -> BettingHandler m JsonPlaceExecutionReport
     CancelOrders :: JsonRequestCancelOrders -> BettingHandler m JsonCancelExecutionReport
+    CancelAllOrders :: BettingHandler m JsonCancelExecutionReport
     ReplaceOrders :: JsonRequestReplaceOrders -> BettingHandler m JsonReplaceExecutionReport
 
 makeSem ''BettingHandler
@@ -121,9 +118,15 @@ runBettingHandler url httpConfig sem = do
             PlaceOrders req ->
                 bettingRequest bettingConfig "SportsAPING/v1.0/placeOrders" req
             CancelOrders req ->
-                bettingRequest bettingConfig "SportsAPING/v1.0/cancelOrders" req
+                cancelOrders' bettingConfig req
+            CancelAllOrders ->
+                cancelOrders' bettingConfig $ JsonRequestCancelOrders def V.empty def
+
             ReplaceOrders req ->
                 bettingRequest bettingConfig "SportsAPING/v1.0/replaceOrders" req
           ) sem
   where
     bettingRequest (BettingConfig url' opts) = performRpcRequest url' opts
+
+    cancelOrders' config = bettingRequest config "SportsAPING/v1.0/cancelOrders"
+

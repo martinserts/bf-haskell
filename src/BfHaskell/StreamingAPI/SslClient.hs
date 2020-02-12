@@ -296,8 +296,6 @@ processLine _conn (SRStatusMessage sm)       = do
               addClientUpdate comm $ SMConnectionStateChanged SMCSConnected
 
 processLine _conn (SROrderChangeMessage om)  = do
-    logDebug $ "ProcessLine: " <> (T.pack . show $ om)
-
     comm <- ask
     oddsTree <- ask
     changes <- liftIO $ modifyOrderCache comm (updateOrderCache oddsTree)
@@ -313,8 +311,6 @@ processLine _conn (SROrderChangeMessage om)  = do
             . runNonDet $ processMessage om
 
 processLine _conn (SRMarketChangeMessage mm) = do
-    logDebug $ "ProcessLine: " <> (T.pack . show $ mm)
-
     comm <- ask
     oddsTree <- ask
     changes <- liftIO $ modifyMarketCache comm (updateMarketCache oddsTree)
