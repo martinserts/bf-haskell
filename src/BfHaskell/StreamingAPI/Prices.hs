@@ -12,6 +12,7 @@ module BfHaskell.StreamingAPI.Prices
   , LadderPrices(..), mkLadderPrices, updateLadderPrices
   , defaultLadderLevels
   , PricePoints(..), mkPricePoints, updatePricePoints
+  , liability
 ) where
 
 import           Control.Monad   (guard)
@@ -46,7 +47,7 @@ instance Default LadderPrices where
     def = mkLadderPrices defaultLadderLevels
 
 newtype PricePoints = PricePoints { unPricePoints :: M.Map BetOdds BetSize }
-    deriving (Show)
+    deriving (Eq, Show)
 instance Default PricePoints where
     def = mkPricePoints
 
@@ -80,4 +81,5 @@ updatePricePoints (Just changes) old =
     update (PricePoints pp) [odds, size] = PricePoints $ M.insert odds size pp
     update pp _                          = pp
 
-
+liability :: Bet -> Double
+liability (Bet size odds) = (odds - 1) * size
