@@ -29,7 +29,7 @@ type OddsStep = Nano
 -- | Odds normalized for Betfair exchange
 -- See: [Betfair Price Increments](https://docs.developer.betfair.com/display/1smk3cen4v3lu3yomq5qye0ni/placeOrders#placeOrders-BetfairPriceIncrements)
 newtype NormalizedOdds = NormalizedOdds { getOdds :: Nano }
-        deriving (Eq, Show, Num)
+        deriving (Eq, Show, Num, Ord)
 
 type OddsTree = IntervalMap Odds OddsStep
 

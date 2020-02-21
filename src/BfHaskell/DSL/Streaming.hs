@@ -27,7 +27,8 @@ module BfHaskell.DSL.Streaming
   , mkMarketListFilter
 
   -- * Data types
-  , Handicap, MarketDetails, MarketId, MarketRunner(..), MarketRunnerKey, BetId
+  , MarketDetails(..), MarketId, MarketRunner(..), MarketRunnerKey, MarketRunnerTable
+  , BetId, Handicap
   , SMConnectionState (..), SelectionId, StreamingConnectionInfo (..)
   , StreamingMessage (..), OrderRunner(..), OrderRunnerTable
 
@@ -42,10 +43,11 @@ import           BfHaskell.StreamingAPI.SslClient          (defaultStreamingConn
 import           BfHaskell.StreamingAPI.Streaming          (mkMarketListFilter)
 import           BfHaskell.StreamingAPI.StreamingProcessor (runStreamingHandler)
 import           BfHaskell.StreamingAPI.Types              (BetId, Handicap,
-                                                            MarketDetails,
+                                                            MarketDetails (..),
                                                             MarketId,
                                                             MarketRunner (..),
                                                             MarketRunnerKey,
+                                                            MarketRunnerTable,
                                                             OrderRunner (..),
                                                             OrderRunnerTable,
                                                             SMConnectionState (..),
