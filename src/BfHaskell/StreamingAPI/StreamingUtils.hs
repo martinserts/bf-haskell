@@ -14,17 +14,18 @@ module BfHaskell.StreamingAPI.StreamingUtils
 ) where
 
 import           BfHaskell.Common.Logging
-import           BfHaskell.Internal.JsonTypes (toJsonText)
-import           BfHaskell.StreamingAPI.Types (crlf)
-import           Control.Lens                 (Lens', set)
-import           Control.Monad.IO.Class       (liftIO)
-import qualified Data.Aeson                   as A
-import           Data.ByteString.Lazy         (fromStrict)
-import           Data.Connection              (Connection (send))
+import           BfHaskell.Internal.Exceptions (showException)
+import           BfHaskell.Internal.JsonTypes  (toJsonText)
+import           BfHaskell.StreamingAPI.Types  (crlf)
+import           Control.Lens                  (Lens', set)
+import qualified Data.Aeson                    as A
+import           Data.ByteString.Lazy          (fromStrict)
+import           Data.Connection               (Connection (send))
 import           Polysemy
+import           Polysemy.Error
 import           Polysemy.Output
 import           Polysemy.State
-import           System.IO.Streams.TLS        (TLSConnection)
+import           System.IO.Streams.TLS         (TLSConnection)
 
 updateStateProperty :: Member (State s) r => Lens' s (Maybe a) -> Maybe a -> Sem r ()
 updateStateProperty _ Nothing = return ()
@@ -34,8 +35,9 @@ updateStreamingProperty :: Lens' s (Maybe a) -> Maybe a -> s -> s
 updateStreamingProperty _ Nothing state = state
 updateStreamingProperty lens v state    = set lens v state
 
-sendStreamMessage :: (A.ToJSON a, Members [Embed IO, Output LogMessage] r)
+sendStreamMessage :: (A.ToJSON a, Members [Embed IO, Output LogMessage, Error String] r)
                   => TLSConnection -> a -> Sem r ()
 sendStreamMessage conn msg = do
     logDebug $ "Sending: " <> toJsonText msg
-    liftIO $ send conn $ A.encode msg <> fromStrict crlf
+    let m = A.encode msg <> fromStrict crlf
+    fromExceptionVia showException $ send conn m

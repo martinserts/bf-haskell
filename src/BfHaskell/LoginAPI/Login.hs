@@ -17,30 +17,30 @@ module BfHaskell.LoginAPI.Login
 ) where
 
 import           BfHaskell.Common.Logging
-import           BfHaskell.Internal.JsonTypes (defaultFromJsonOptions)
-import           BfHaskell.Internal.Network   (addHeader, makeTlsClientManager,
-                                               parseUrl)
-import           BfHaskell.LoginAPI.Types     (LoginCredentials (..),
-                                               LoginHandler (..),
-                                               SessionToken (..),
-                                               defaultLoginUrl)
-import qualified Control.Exception            as E
-import           Control.Monad                (guard)
-import           Control.Monad.IO.Class       (liftIO)
-import qualified Data.Aeson                   as A
-import           Data.Either                  (either)
-import           Data.Text                    (Text, pack)
-import qualified Data.Text.IO                 as TIO
-import           Data.Time                    (UTCTime, diffUTCTime,
-                                               getCurrentTime)
-import           Data.Time.Clock              (NominalDiffTime)
-import           GHC.Generics                 (Generic)
-import           Network.HTTP.Req             (HttpConfig (httpConfigAltManager),
-                                               Option, POST (..), Req,
-                                               ReqBodyUrlEnc (..),
-                                               Scheme (Https), Url,
-                                               defaultHttpConfig, jsonResponse,
-                                               req, responseBody, runReq, (=:))
+import           BfHaskell.Internal.Exceptions (showException)
+import           BfHaskell.Internal.JsonTypes  (defaultFromJsonOptions)
+import           BfHaskell.Internal.Network    (addHeader, makeTlsClientManager,
+                                                parseUrl)
+import           BfHaskell.LoginAPI.Types      (LoginCredentials (..),
+                                                LoginHandler (..),
+                                                SessionToken (..),
+                                                defaultLoginUrl)
+import           Control.Monad                 (guard)
+import           Control.Monad.IO.Class        (liftIO)
+import qualified Data.Aeson                    as A
+import           Data.Either                   (either)
+import           Data.Text                     (Text, pack)
+import qualified Data.Text.IO                  as TIO
+import           Data.Time                     (UTCTime, diffUTCTime,
+                                                getCurrentTime)
+import           Data.Time.Clock               (NominalDiffTime)
+import           GHC.Generics                  (Generic)
+import           Network.HTTP.Req              (HttpConfig (httpConfigAltManager),
+                                                Option, POST (..), Req,
+                                                ReqBodyUrlEnc (..),
+                                                Scheme (Https), Url,
+                                                defaultHttpConfig, jsonResponse,
+                                                req, responseBody, runReq, (=:))
 import           Polysemy
 import           Polysemy.Error
 import           Polysemy.Output
@@ -86,7 +86,8 @@ fetchSessionToken = do
                                                 (_lcPassword creds)
                                                 (_lcAppKey creds)
     (LoginHttpConfig httpConfig) <- ask
-    response <- runReq httpConfig request
+    response <- fromExceptionVia showException
+                    $ runReq httpConfig request
     logDebug $ either (pack . ("Failed to fetch token: " <>))
                       (const "Successfully fetched token") response
 
@@ -136,13 +137,7 @@ fetchTokenThroughCache = do
 readCertificate :: Members '[Embed IO, Error String] r
                 => FilePath         -- ^ Path to certificate file
                 -> Sem r Text
-readCertificate fileName =
-    fromEitherM $ E.catch readContents formatException
-  where
-    readContents = Right <$> TIO.readFile fileName
-
-    formatException :: E.SomeException -> IO (Either String Text)
-    formatException = pure . Left . show
+readCertificate fileName = fromExceptionVia showException $ TIO.readFile fileName
 
 newLoginCredentials :: Members '[Embed IO, Error String] r
                     => Text     -- ^ Username

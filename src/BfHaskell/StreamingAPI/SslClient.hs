@@ -21,6 +21,7 @@ import           BfHaskell.Common.Odds                   (OddsTree, newTree)
 import           BfHaskell.DSL.Login                     (LoginHandler,
                                                           SessionToken (..),
                                                           fetchToken, getAppKey)
+import           BfHaskell.Internal.Exceptions           (showException)
 import           BfHaskell.StreamingAPI.Model
 import           BfHaskell.StreamingAPI.StreamingComm    (CommCentre,
                                                           addClientUpdate,
@@ -128,10 +129,11 @@ runSslClient comm connectionInfo = do
     alwaysRetry _ _ = return True
 
     startAction _rs =
-        void . runState def
-             . runReader comm
-             . runReader newTree
-             $ connectAndAuthenticate connectionInfo
+        catch (void . runState def
+                    . runReader comm
+                    . runReader newTree
+                    $ connectAndAuthenticate connectionInfo)
+              (logError . ("runSslClient: " <>) . T.pack)
 
 connectAndAuthenticate :: Members '[Embed IO,
                                     Output LogMessage,
@@ -158,7 +160,8 @@ connectAndAuthenticate (StreamingConnectionInfo hostName port) = do
             clientParams' <- liftIO $ makeClientParams SystemCAStore
             let clientParams = clientParams' { clientUseMaxFragmentLength = Just MaxFragment4096 }
             let p = fromInteger . toInteger $ port
-            conn <- liftIO $ connect clientParams Nothing (T.unpack hostName) p
+            conn <- fromExceptionVia showException
+                        $ connect clientParams Nothing (T.unpack hostName) p
 
             -- Preserve connection in storage
             liftIO $ storeConnection comm $ Just conn
@@ -167,9 +170,9 @@ connectAndAuthenticate (StreamingConnectionInfo hostName port) = do
         ) -- Acquire TCP stream
         (\conn -> do
             liftIO $ do
-                close conn
                 -- Remove connection from storage
                 storeConnection comm Nothing
+                close conn
 
             -- Send update message to client
             addClientUpdate comm $ SMConnectionStateChanged SMCSDisconnected
@@ -246,7 +249,7 @@ fetchLine conn = do
     case streamResponse of
       Just line -> return $ SRRGotLine line
       Nothing   -> do
-          mbytes <- liftIO $ IOS.read $ source conn
+          mbytes <- fromExceptionVia showException $ IOS.read $ source conn
           case mbytes of
             Just bytes -> do
                 modify' $ over ssStreamBuffer (`B.append` bytes)
@@ -374,3 +377,4 @@ processMessage msg = do
     changes = fromMaybe [] $ getChanges msg
 
     applyChanges c = catMaybes <$> traverse extractChanges c
+

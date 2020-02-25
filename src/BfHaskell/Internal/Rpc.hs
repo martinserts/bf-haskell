@@ -15,23 +15,26 @@ module BfHaskell.Internal.Rpc
 ) where
 
 import           BfHaskell.Common.Logging
-import           BfHaskell.DSL.Login          (LoginHandler, fetchToken,
-                                               getAppKey)
-import           BfHaskell.Internal.JsonTypes (defaultFromJsonOptions,
-                                               defaultToJsonOptions, toJsonText)
-import           BfHaskell.Internal.Network   (addHeader)
-import           BfHaskell.LoginAPI.Types     (SessionToken (..))
-import           Control.Monad.IO.Class       (liftIO)
-import           Data.Aeson                   ((.:))
-import qualified Data.Aeson                   as A
-import           Data.Text                    (Text)
-import qualified Data.UUID                    as UUID
-import           Data.UUID.V4                 as UUID
-import           GHC.Generics                 (Generic)
-import           Network.HTTP.Req             (HttpConfig, Option, POST (..),
-                                               ReqBodyJson (..), Scheme (Https),
-                                               Url, jsonResponse, req,
-                                               responseBody, runReq)
+import           BfHaskell.DSL.Login           (LoginHandler, fetchToken,
+                                                getAppKey)
+import           BfHaskell.Internal.Exceptions (showException)
+import           BfHaskell.Internal.JsonTypes  (defaultFromJsonOptions,
+                                                defaultToJsonOptions,
+                                                toJsonText)
+import           BfHaskell.Internal.Network    (addHeader)
+import           BfHaskell.LoginAPI.Types      (SessionToken (..))
+import           Control.Monad.IO.Class        (liftIO)
+import           Data.Aeson                    ((.:))
+import qualified Data.Aeson                    as A
+import           Data.Text                     (Text)
+import qualified Data.UUID                     as UUID
+import           Data.UUID.V4                  as UUID
+import           GHC.Generics                  (Generic)
+import           Network.HTTP.Req              (HttpConfig, Option, POST (..),
+                                                ReqBodyJson (..),
+                                                Scheme (Https), Url,
+                                                jsonResponse, req, responseBody,
+                                                runReq)
 import           Polysemy
 import           Polysemy.Error
 import           Polysemy.Output
@@ -108,8 +111,9 @@ performRpcRequest url options apiCommand request = do
                           `addHeader` ("X-Authentication", token)
 
     httpConfig <- ask
-    response <- liftIO $ runReq httpConfig $
-        req POST url (ReqBodyJson rpcRequest) jsonResponse headers
+    let request' = req POST url (ReqBodyJson rpcRequest) jsonResponse headers
+    response <- fromExceptionVia showException
+                    $ runReq httpConfig request'
     let rpcResponse :: JsonRpcResponse = responseBody response
 
     -- Log response

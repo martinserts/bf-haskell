@@ -46,9 +46,17 @@ runCommandExecutor sslClientThread comm = do
         logInfo $ "runCommandExecutor - incoming command: " <>
                         T.pack (show cmd)
         case cmd of
-          SCMSubscribeToMarkets markets -> subscribeToMarkets markets comm >> go
-          SCMSubscribeToOrders          -> subscribeToOrders comm >> go
-          SCMStopService                -> liftIO $ AS.cancel sslClientThread
+          SCMSubscribeToMarkets markets -> do
+              catch (subscribeToMarkets markets comm)
+                    $ logProblem "runCommandExecutor: subscribeToMarkets failed - "
+              go
+          SCMSubscribeToOrders -> do
+              catch (subscribeToOrders comm)
+                    $ logProblem "runCommandExecutor: subscribeToOrders failed - "
+              go
+          SCMStopService -> liftIO $ AS.cancel sslClientThread
+
+    logProblem t = logError . (t <>) . T.pack
 
 subscribeToMarkets :: Members '[Embed IO,
                                 Output LogMessage,
@@ -59,7 +67,7 @@ subscribeToMarkets :: Members '[Embed IO,
 subscribeToMarkets marketFilter comm = do
     mConn <- liftIO $ readConnection comm
     case mConn of
-      Nothing -> throw "Tried to subscribe to markets when disconnected"
+      Nothing -> logError "subscribeToMarkets: Tried to subscribe to markets when disconnected"
       Just conn -> do
           -- Get next unique message id
           msgId <- liftIO $ getNextMessageId comm
@@ -92,7 +100,7 @@ subscribeToOrders :: Members '[Embed IO,
 subscribeToOrders comm = do
     mConn <- liftIO $ readConnection comm
     case mConn of
-      Nothing -> throw "Tried to subscribe to orders when disconnected"
+      Nothing -> logError "subscribeToOrders: Tried to subscribe to orders when disconnected"
       Just conn -> do
           -- Get next unique message id
           msgId <- liftIO $ getNextMessageId comm

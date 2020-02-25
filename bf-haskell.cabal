@@ -31,6 +31,7 @@ library
                      BfHaskell.Internal.JsonTypes,
                      BfHaskell.Internal.Network,
                      BfHaskell.Internal.Rpc,
+                     BfHaskell.Internal.Exceptions,
                      BfHaskell.LoginAPI.Types,
                      BfHaskell.LoginAPI.Login,
                      BfHaskell.StreamingAPI.Model,

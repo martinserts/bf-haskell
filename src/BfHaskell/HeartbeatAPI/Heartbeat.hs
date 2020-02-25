@@ -20,10 +20,10 @@ import           BfHaskell.Internal.Network   (parseUrl)
 import           BfHaskell.Internal.Rpc       (performRpcRequest)
 import           Control.Concurrent           (threadDelay)
 import qualified Control.Concurrent.Async     as AS
-import           Control.Monad                (forever)
+import           Control.Monad                (forever, void)
 import           Control.Monad.IO.Class       (liftIO)
 import           Data.Maybe                   (fromMaybe)
-import           Data.Text                    (Text)
+import           Data.Text                    (Text, pack)
 import           Data.Time.Clock              (NominalDiffTime)
 import           Network.HTTP.Req             (HttpConfig, Option,
                                                Scheme (Https), Url,
@@ -61,7 +61,9 @@ runHeartbeatHandler url httpConfig timeout sem = do
 
     bracket (
         runReader httpConfig' $ async $ forever $ do
-            _ <- heartbeatRequest heartbeatConfig   -- Send heartbeat
+            -- Send heartbeat
+            catch (void $ heartbeatRequest heartbeatConfig)
+                  (logError . ("runHeartbeatHandler: heartbeatRequest failed - " <>) . pack)
             sleepBetweenCalls                       -- Sleep
         )                            -- Start heartbeat thread
         (liftIO . AS.cancel)         -- Kill hearbeat thread
