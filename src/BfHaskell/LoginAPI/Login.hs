@@ -25,9 +25,11 @@ import           BfHaskell.LoginAPI.Types      (LoginCredentials (..),
                                                 LoginHandler (..),
                                                 SessionToken (..),
                                                 defaultLoginUrl)
+import           Control.Concurrent.STM
 import           Control.Monad                 (guard)
 import           Control.Monad.IO.Class        (liftIO)
 import qualified Data.Aeson                    as A
+import           Data.Default
 import           Data.Either                   (either)
 import           Data.Text                     (Text, pack)
 import qualified Data.Text.IO                  as TIO
@@ -45,7 +47,6 @@ import           Polysemy
 import           Polysemy.Error
 import           Polysemy.Output
 import           Polysemy.Reader
-import           Polysemy.State
 
 
 data JsonLoginResponse = JsonLoginResponse { _jslrSessionToken :: Text
@@ -60,7 +61,10 @@ data SessionTokenWithTime = SessionTokenWithTime
     , _stwtTokenRetrievedAt :: UTCTime
     } deriving (Show)
 
-type LoginState = Maybe SessionTokenWithTime
+data LoginSettings = LoginSettings
+        { _lsCreds :: LoginCredentials
+        , _lsToken :: TVar (Maybe SessionTokenWithTime)
+        }
 
 newtype LoginHttpConfig = LoginHttpConfig HttpConfig
 
@@ -75,12 +79,12 @@ createHttpConfig publicCertificate privateKey = do
 
 fetchSessionToken :: Members '[Embed IO,
                                Output LogMessage,
-                               Reader LoginCredentials,
+                               Reader LoginSettings,
                                Reader LoginHttpConfig,
                                Error String] r
                   => Sem r SessionToken
 fetchSessionToken = do
-    creds <- ask
+    creds <- asks _lsCreds
     (url, option) <- parseUrl $ _lcLoginUrl creds
     let request = createLoginRequest url option (_lcUsername creds)
                                                 (_lcPassword creds)
@@ -112,25 +116,26 @@ createLoginRequest url defaultOptions username password appName = do
 
 fetchTokenThroughCache :: Members '[Embed IO,
                                     Output LogMessage,
-                                    State LoginState,
-                                    Reader LoginCredentials,
+                                    Reader LoginSettings,
                                     Reader LoginHttpConfig,
                                     Error String] r
                        => Sem r SessionToken
 fetchTokenThroughCache = do
     currentTime <- liftIO getCurrentTime
-    state <- get
-    expiry <- asks _lcExpiry
+    tvarToken <- asks _lsToken
+    mToken <- liftIO $ readTVarIO tvarToken
+    expiry <- asks $ _lcExpiry . _lsCreds
 
-    case getCachedToken currentTime state expiry of
+    case getCachedToken currentTime mToken expiry of
       Just token -> return token
       Nothing -> do
           token <- fetchSessionToken
-          put $ Just $ SessionTokenWithTime token currentTime
+          liftIO . atomically . writeTVar tvarToken . Just
+                 $ SessionTokenWithTime token currentTime
           return token
   where
-    getCachedToken currentTime state expiry = do
-        SessionTokenWithTime token retrievedAt <- state
+    getCachedToken currentTime mToken expiry = do
+        SessionTokenWithTime token retrievedAt <- mToken
         guard $ diffUTCTime currentTime retrievedAt < expiry
         return token
 
@@ -159,15 +164,14 @@ runLoginHandler :: Members [Embed IO, Output LogMessage, Error String] r
                 -> InterpreterFor LoginHandler r
 runLoginHandler creds httpConfig sem = do
     httpConfig' <- maybe newHttpConfig pure httpConfig
+    settings <- LoginSettings <$> pure creds <*> liftIO (newTVarIO def)
 
-    fmap snd
-      . runState (Nothing :: LoginState)
-      . runReader creds
+    runReader settings
       . runReader (LoginHttpConfig httpConfig')
-      $ reinterpret3 (\case
+      $ reinterpret2 (\case
           FetchToken -> fetchTokenThroughCache
-          GetAppKey -> asks _lcAppKey
-          GetExpiry -> asks _lcExpiry
+          GetAppKey -> return $ _lcAppKey creds
+          GetExpiry -> return $ _lcExpiry creds
         ) sem
   where
     newHttpConfig = createHttpConfig (_lcPublicCertificate creds)
