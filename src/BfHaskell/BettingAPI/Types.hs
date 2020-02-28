@@ -540,8 +540,8 @@ data JsonCancelInstructionReport = JsonCancelInstructionReport
         { _jcirStatus        :: JsonInstructionReportStatus
         , _jcirErrorCode     :: Maybe JsonInstructionReportErrorCode
         , _jcirInstruction   :: Maybe JsonCancelInstruction
-        , _jcirSizeCancelled :: Double
-        , _jcirCancelledDate :: UTCTime
+        , _jcirSizeCancelled :: Maybe Double
+        , _jcirCancelledDate :: Maybe UTCTime
         } deriving (Show, Generic)
 instance A.FromJSON JsonCancelInstructionReport where
      parseJSON = A.genericParseJSON defaultFromJsonOptions
