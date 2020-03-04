@@ -47,7 +47,7 @@ newTree = foldl insertInterval empty intervals
                  (30, 50, 2),
                  (50, 100, 5),
                  (100, 100000, 10)]
-    insertInterval m (from, till, step) = insert (Interval from till) step m
+    insertInterval m (from, till, step) = insert (Interval from (till - step)) step m
 
 getOddsStep :: OddsTree -> Odds -> OddsStep
 getOddsStep tree odds =
